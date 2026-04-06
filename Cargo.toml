@@ -1,0 +1,10 @@
+[package]
+name = "dbsee"
+version = "0.1.0"
+edition = "2021"
+description = "A tool for comparing two DBC (CAN database) files"
+
+[dependencies]
+can-dbc = "7"
+rfd = "0.15"
+anyhow = "1"
