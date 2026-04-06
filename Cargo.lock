@@ -278,6 +278,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "can-dbc",
+ "encoding_rs",
  "rfd",
 ]
 

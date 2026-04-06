@@ -26,9 +26,25 @@ fn select_save_file() -> Result<PathBuf> {
         .context("保存先が選択されませんでした")
 }
 
-fn parse_dbc(path: &PathBuf) -> Result<Dbc> {
-    let content = fs::read_to_string(path)
+fn read_dbc_string(path: &PathBuf) -> Result<String> {
+    let bytes = fs::read(path)
         .with_context(|| format!("ファイルを読み込めません: {}", path.display()))?;
+
+    // Try UTF-8 first, fall back to CP1252 (common encoding for DBC files)
+    match String::from_utf8(bytes.clone()) {
+        Ok(s) => Ok(s),
+        Err(_) => {
+            let (cow, _, had_errors) = encoding_rs::WINDOWS_1252.decode(&bytes);
+            if had_errors {
+                anyhow::bail!("ファイルのエンコーディングを判別できません: {}", path.display());
+            }
+            Ok(cow.into_owned())
+        }
+    }
+}
+
+fn parse_dbc(path: &PathBuf) -> Result<Dbc> {
+    let content = read_dbc_string(path)?;
     let dbc = Dbc::try_from(content.as_str())
         .map_err(|e| anyhow::anyhow!("DBCパースエラー ({}): {:?}", path.display(), e))?;
     Ok(dbc)

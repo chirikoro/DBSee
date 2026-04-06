@@ -5,6 +5,7 @@ edition = "2021"
 description = "A tool for comparing two DBC (CAN database) files"
 
 [dependencies]
-can-dbc = "7"
+can-dbc = { version = "7", features = ["encodings"] }
+encoding_rs = "0.8"
 rfd = "0.15"
 anyhow = "1"
