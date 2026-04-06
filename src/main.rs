@@ -16,6 +16,16 @@ fn select_dbc_file(title: &str) -> Result<PathBuf> {
         .context(format!("{}: ファイルが選択されませんでした", title))
 }
 
+fn select_save_file() -> Result<PathBuf> {
+    FileDialog::new()
+        .set_title("比較結果の保存先を選択")
+        .add_filter("Text files", &["txt"])
+        .add_filter("All files", &["*"])
+        .set_file_name("dbc_comparison_result.txt")
+        .save_file()
+        .context("保存先が選択されませんでした")
+}
+
 fn parse_dbc(path: &PathBuf) -> Result<Dbc> {
     let content = fs::read_to_string(path)
         .with_context(|| format!("ファイルを読み込めません: {}", path.display()))?;
@@ -39,7 +49,15 @@ fn main() -> Result<()> {
     let dbc2 = parse_dbc(&path2)?;
 
     let report = compare::compare_dbc(&dbc1, &dbc2);
-    display::print_report(&report, &path1, &path2);
+    let output = display::format_report(&report, &path1, &path2);
+
+    // Save to file
+    println!("比較結果の保存先を選択してください...");
+    let save_path = select_save_file()?;
+    fs::write(&save_path, &output)
+        .with_context(|| format!("ファイルの書き込みに失敗しました: {}", save_path.display()))?;
+
+    println!("比較結果を保存しました: {}", save_path.display());
 
     Ok(())
 }

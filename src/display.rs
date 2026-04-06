@@ -1,65 +1,66 @@
 use crate::compare::{Diff, DiffReport, DiffStatus, MessageDiff, SectionDiff, SignalDiff};
+use std::fmt::Write;
 use std::path::Path;
 
-fn print_diff(diff: &Diff, indent: &str) {
+fn write_diff(out: &mut String, diff: &Diff, indent: &str) {
     match diff {
-        Diff::Added(detail) => println!("{}  Added: {}", indent, detail),
-        Diff::Removed(detail) => println!("{}  Removed: {}", indent, detail),
+        Diff::Added(detail) => writeln!(out, "{}  Added: {}", indent, detail).unwrap(),
+        Diff::Removed(detail) => writeln!(out, "{}  Removed: {}", indent, detail).unwrap(),
         Diff::Changed { field, old, new } => {
-            println!("{}  Changed: {}: {} -> {}", indent, field, old, new)
+            writeln!(out, "{}  Changed: {}: {} -> {}", indent, field, old, new).unwrap()
         }
     }
 }
 
-fn print_section(title: &str, diffs: &[Diff]) {
+fn write_section(out: &mut String, title: &str, diffs: &[Diff]) {
     if diffs.is_empty() {
         return;
     }
-    println!("--- {} ---", title);
+    writeln!(out, "--- {} ---", title).unwrap();
     for d in diffs {
-        print_diff(d, "");
+        write_diff(out, d, "");
     }
-    println!();
+    writeln!(out).unwrap();
 }
 
-fn print_subsections(title: &str, sections: &[SectionDiff]) {
+fn write_subsections(out: &mut String, title: &str, sections: &[SectionDiff]) {
     if sections.is_empty() {
         return;
     }
-    println!("--- {} ---", title);
+    writeln!(out, "--- {} ---", title).unwrap();
     for sec in sections {
-        println!("  {}:", sec.name);
+        writeln!(out, "  {}:", sec.name).unwrap();
         for d in &sec.diffs {
-            print_diff(d, "  ");
+            write_diff(out, d, "  ");
         }
     }
-    println!();
+    writeln!(out).unwrap();
 }
 
-fn print_signal_diff(sd: &SignalDiff, indent: &str) {
+fn write_signal_diff(out: &mut String, sd: &SignalDiff, indent: &str) {
     match sd.status {
         DiffStatus::Added => {
-            println!("{}  Signal added: {}", indent, sd.name);
+            writeln!(out, "{}  Signal added: {}", indent, sd.name).unwrap();
             for d in &sd.diffs {
-                print_diff(d, &format!("{}  ", indent));
+                write_diff(out, d, &format!("{}  ", indent));
             }
         }
         DiffStatus::Removed => {
-            println!("{}  Signal removed: {}", indent, sd.name);
+            writeln!(out, "{}  Signal removed: {}", indent, sd.name).unwrap();
             for d in &sd.diffs {
-                print_diff(d, &format!("{}  ", indent));
+                write_diff(out, d, &format!("{}  ", indent));
             }
         }
         DiffStatus::Changed => {
-            println!("{}  Signal {}:", indent, sd.name);
+            writeln!(out, "{}  Signal {}:", indent, sd.name).unwrap();
             for d in &sd.diffs {
-                print_diff(d, &format!("{}  ", indent));
+                write_diff(out, d, &format!("{}  ", indent));
             }
         }
     }
 }
 
-fn print_message_diff(md: &MessageDiff) {
+fn write_message_diff(out: &mut String, md: &MessageDiff) {
     let id_str = match md.id {
         can_dbc::MessageId::Standard(v) => format!("0x{:X}", v),
         can_dbc::MessageId::Extended(v) => format!("0x{:X}x", v),
@@ -67,89 +68,66 @@ fn print_message_diff(md: &MessageDiff) {
 
     match md.status {
         DiffStatus::Added => {
-            println!("  Added: Message {} ({})", id_str, md.name);
+            writeln!(out, "  Added: Message {} ({})", id_str, md.name).unwrap();
         }
         DiffStatus::Removed => {
-            println!("  Removed: Message {} ({})", id_str, md.name);
+            writeln!(out, "  Removed: Message {} ({})", id_str, md.name).unwrap();
         }
         DiffStatus::Changed => {
-            println!("  Message {} ({}):", id_str, md.name);
+            writeln!(out, "  Message {} ({}):", id_str, md.name).unwrap();
             for d in &md.diffs {
-                print_diff(d, "  ");
+                write_diff(out, d, "  ");
             }
             for sd in &md.signal_diffs {
-                print_signal_diff(sd, "    ");
+                write_signal_diff(out, sd, "    ");
             }
         }
     }
 }
 
-pub fn print_report(report: &DiffReport, path1: &Path, path2: &Path) {
-    println!("=== DBC File Comparison ===");
-    println!("File 1: {}", path1.display());
-    println!("File 2: {}", path2.display());
-    println!();
+pub fn format_report(report: &DiffReport, path1: &Path, path2: &Path) -> String {
+    let mut out = String::new();
+
+    writeln!(out, "=== DBC File Comparison ===").unwrap();
+    writeln!(out, "File 1: {}", path1.display()).unwrap();
+    writeln!(out, "File 2: {}", path2.display()).unwrap();
+    writeln!(out).unwrap();
 
     if report.is_empty() {
-        println!("No differences found. The files are identical.");
-        return;
+        writeln!(out, "No differences found. The files are identical.").unwrap();
+        return out;
     }
 
-    // Version
-    print_section("Version", &report.version);
+    write_section(&mut out, "Version", &report.version);
+    write_section(&mut out, "New Symbols (NS_)", &report.new_symbols);
+    write_section(&mut out, "Nodes (BU_)", &report.nodes);
 
-    // New Symbols
-    print_section("New Symbols (NS_)", &report.new_symbols);
-
-    // Nodes
-    print_section("Nodes (BU_)", &report.nodes);
-
-    // Messages & Signals
     if !report.messages.is_empty() {
-        println!("--- Messages (BO_) & Signals (SG_) ---");
+        writeln!(out, "--- Messages (BO_) & Signals (SG_) ---").unwrap();
         for md in &report.messages {
-            print_message_diff(md);
+            write_message_diff(&mut out, md);
         }
-        println!();
+        writeln!(out).unwrap();
     }
 
-    // Value Tables
-    print_subsections("Value Tables (VAL_TABLE_)", &report.value_tables);
-
-    // Comments
-    print_section("Comments (CM_)", &report.comments);
-
-    // Attribute Definitions
-    print_section("Attribute Definitions (BA_DEF_)", &report.attribute_definitions);
-
-    // Attribute Defaults
-    print_section("Attribute Defaults (BA_DEF_DEF_)", &report.attribute_defaults);
-
-    // Attribute Values
-    print_section("Attribute Values (BA_)", &report.attribute_values);
-
-    // Value Descriptions
-    print_subsections("Value Descriptions (VAL_)", &report.value_descriptions);
-
-    // Environment Variables
-    print_section("Environment Variables (EV_)", &report.environment_variables);
-
-    // Signal Type Refs
-    print_section("Signal Type References (SIG_TYPE_REF_)", &report.signal_type_refs);
-
-    // Signal Groups
-    print_section("Signal Groups (SIG_GROUP_)", &report.signal_groups);
-
-    // Signal Extended Value Types
-    print_section(
+    write_subsections(&mut out, "Value Tables (VAL_TABLE_)", &report.value_tables);
+    write_section(&mut out, "Comments (CM_)", &report.comments);
+    write_section(&mut out, "Attribute Definitions (BA_DEF_)", &report.attribute_definitions);
+    write_section(&mut out, "Attribute Defaults (BA_DEF_DEF_)", &report.attribute_defaults);
+    write_section(&mut out, "Attribute Values (BA_)", &report.attribute_values);
+    write_subsections(&mut out, "Value Descriptions (VAL_)", &report.value_descriptions);
+    write_section(&mut out, "Environment Variables (EV_)", &report.environment_variables);
+    write_section(&mut out, "Signal Type References (SIG_TYPE_REF_)", &report.signal_type_refs);
+    write_section(&mut out, "Signal Groups (SIG_GROUP_)", &report.signal_groups);
+    write_section(
+        &mut out,
         "Signal Extended Value Types (SIG_VALTYPE_)",
         &report.signal_extended_value_types,
     );
+    write_section(&mut out, "Extended Multiplex (SG_MUL_VAL_)", &report.extended_multiplex);
 
-    // Extended Multiplex
-    print_section("Extended Multiplex (SG_MUL_VAL_)", &report.extended_multiplex);
+    writeln!(out, "=== Summary ===").unwrap();
+    writeln!(out, "Total differences: {}", report.total_count()).unwrap();
 
-    // Summary
-    println!("=== Summary ===");
-    println!("Total differences: {}", report.total_count());
+    out
 }
