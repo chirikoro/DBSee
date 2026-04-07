@@ -67,10 +67,13 @@ fn main() -> Result<()> {
     let report = compare::compare_dbc(&dbc1, &dbc2);
     let output = display::format_report(&report, &path1, &path2);
 
-    // Save to file
+    // Save to file with UTF-8 BOM for Windows compatibility
     println!("比較結果の保存先を選択してください...");
     let save_path = select_save_file()?;
-    fs::write(&save_path, &output)
+    let mut bom_output = Vec::with_capacity(3 + output.len());
+    bom_output.extend_from_slice(b"\xEF\xBB\xBF"); // UTF-8 BOM
+    bom_output.extend_from_slice(output.as_bytes());
+    fs::write(&save_path, &bom_output)
         .with_context(|| format!("ファイルの書き込みに失敗しました: {}", save_path.display()))?;
 
     println!("比較結果を保存しました: {}", save_path.display());
