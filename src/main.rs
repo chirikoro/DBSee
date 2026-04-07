@@ -30,17 +30,26 @@ fn read_dbc_string(path: &PathBuf) -> Result<String> {
     let bytes = fs::read(path)
         .with_context(|| format!("ファイルを読み込めません: {}", path.display()))?;
 
-    // Try UTF-8 first, fall back to CP1252 (common encoding for DBC files)
-    match String::from_utf8(bytes.clone()) {
-        Ok(s) => Ok(s),
-        Err(_) => {
-            let (cow, _, had_errors) = encoding_rs::WINDOWS_1252.decode(&bytes);
-            if had_errors {
-                anyhow::bail!("ファイルのエンコーディングを判別できません: {}", path.display());
-            }
-            Ok(cow.into_owned())
-        }
+    // Try UTF-8 first
+    if let Ok(s) = String::from_utf8(bytes.clone()) {
+        return Ok(s);
     }
+
+    // Auto-detect encoding (handles Shift-JIS, CP1252, EUC-JP, etc.)
+    let mut detector = chardetng::EncodingDetector::new();
+    detector.feed(&bytes, true);
+    let encoding = detector.guess(None, true);
+
+    let (cow, _, had_errors) = encoding.decode(&bytes);
+    if had_errors {
+        anyhow::bail!(
+            "ファイルのデコードに失敗しました (検出: {}): {}",
+            encoding.name(),
+            path.display()
+        );
+    }
+    println!("  エンコーディング検出: {} -> UTF-8に変換", encoding.name());
+    Ok(cow.into_owned())
 }
 
 fn parse_dbc(path: &PathBuf) -> Result<Dbc> {

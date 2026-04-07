@@ -7,5 +7,6 @@ description = "A tool for comparing two DBC (CAN database) files"
 [dependencies]
 can-dbc = { version = "7", features = ["encodings"] }
 encoding_rs = "0.8"
+chardetng = "0.1"
 rfd = "0.15"
 anyhow = "1"
